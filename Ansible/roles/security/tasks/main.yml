@@ -1,0 +1,27 @@
+---
+- name: Install security tools
+  package:
+    name:
+      - ufw
+      - fail2ban
+    state: present
+  become: yes
+
+- name: Enable UFW
+  ufw:
+    state: enabled
+    policy: deny
+  become: yes
+
+- name: Allow SSH
+  ufw:
+    rule: allow
+    port: 22
+  become: yes
+
+- name: Enable Fail2ban
+  service:
+    name: fail2ban
+    state: started
+    enabled: yes
+  become: yes
