@@ -1,0 +1,8 @@
+---
+- name: Restart common services
+  service:
+    name: "{{ item }}"
+    state: restarted
+  with_items:
+    - sshd
+  become: yes
