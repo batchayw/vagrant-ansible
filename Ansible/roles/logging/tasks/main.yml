@@ -1,0 +1,23 @@
+---
+- name: Install Rsyslog
+  package:
+    name: rsyslog
+    state: present
+  become: yes
+
+- name: Configure Rsyslog to forward logs
+  template:
+    src: rsyslog.conf.j2
+    dest: /etc/rsyslog.conf
+    owner: root
+    group: root
+    mode: '0644'
+  become: yes
+  notify: Restart rsyslog
+
+- name: Ensure Rsyslog is running
+  service:
+    name: rsyslog
+    state: started
+    enabled: yes
+  become: yes
