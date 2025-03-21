@@ -1,0 +1,2 @@
+network.host: 192.168.43.189
+http.port: 9200
