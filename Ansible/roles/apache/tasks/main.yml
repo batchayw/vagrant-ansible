@@ -1,0 +1,23 @@
+---
+- name: Install Apache
+  package:
+    name: "{{ 'apache2' if ansible_os_family == 'Debian' else 'httpd' }}"
+    state: present
+  become: yes
+
+- name: Deploy Hello World page
+  template:
+    src: index.html.j2
+    dest: "{{ '/var/www/html/index.html' if ansible_os_family == 'Debian' else '/var/www/html/index.html' }}"
+    owner: "{{ 'www-data' if ansible_os_family == 'Debian' else 'apache' }}"
+    group: "{{ 'www-data' if ansible_os_family == 'Debian' else 'apache' }}"
+    mode: '0644'
+  become: yes
+  notify: Restart apache
+
+- name: Ensure Apache is running
+  service:
+    name: "{{ 'apache2' if ansible_os_family == 'Debian' else 'httpd' }}"
+    state: started
+    enabled: yes
+  become: yes
