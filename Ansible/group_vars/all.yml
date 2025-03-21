@@ -1,0 +1,8 @@
+---
+ansible_python_interpreter: /usr/bin/python3
+common_packages:
+  - vim
+  - curl
+  - git
+rsyslog_server: "192.168.43.189"
+prometheus_server: "192.168.43.189"
