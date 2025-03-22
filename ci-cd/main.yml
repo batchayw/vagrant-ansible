@@ -1,0 +1,111 @@
+name: CI/CD Pipeline
+
+# Déclenche la pipeline sur un push vers la branche main
+on:
+  push:
+    branches:
+      - main
+
+# Variables d'environnement globales
+env:
+  VAGRANT_VERSION: "2.3.7"
+  ANSIBLE_CORE_VERSION: "2.16.5"
+  HOST_IP: "192.168.x.x"  # IP de votre machine physique
+
+jobs:
+  # Job principal : Déploiement, tests et vérifications
+  deploy-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Checkout du code source
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Récupère tout l'historique pour des tests éventuels
+
+      # 2. Mise à jour des paquets et installation des dépendances
+      - name: Update Package List and Install Prerequisites
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y curl unzip libfuse2 libvirt-dev qemu-kvm libvirt-clients libvirt-daemon-system
+
+      # 3. Installation de Vagrant
+      - name: Install Vagrant
+        run: |
+          curl -fsSL https://releases.hashicorp.com/vagrant/${{ env.VAGRANT_VERSION }}/vagrant_${{ env.VAGRANT_VERSION }}_linux_amd64.zip -o vagrant.zip
+          unzip vagrant.zip -d /usr/local/bin/
+          sudo chmod +x /usr/local/bin/vagrant
+          vagrant --version
+
+      # 4. Installation du plugin Vagrant pour libvirt
+      - name: Install Vagrant Libvirt Plugin
+        run: |
+          vagrant plugin install vagrant-libvirt
+
+      # 5. Installation d'Ansible
+      - name: Install Ansible
+        run: |
+          sudo apt-get install -y python3-pip
+          pip3 install --user ansible-core==${{ env.ANSIBLE_CORE_VERSION }}
+          ~/.local/bin/ansible --version
+
+      # 6. Vérification des prérequis
+      - name: Verify Prerequisites
+        run: |
+          vagrant --version
+          ansible --version
+          virsh -v
+
+      # 7. Déploiement des VMs avec Vagrant
+      - name: Deploy VMs
+        run: |
+          vagrant up --provider=libvirt
+
+      # 8. Simulation de connexion SSH pour Ansible (facultatif si VMs locales)
+      - name: Simulate SSH Key Setup
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+        if: env.HOST_IP != ''  # Nécessite une clé SSH dans les secrets GitHub
+
+      # 9. Exécution du playbook Ansible
+      - name: Run Ansible Playbook
+        run: |
+          ansible-playbook Ansible/playbooks/site.yml -i Ansible/inventory/hosts.yml
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: False  # Désactive la vérification des clés pour CI
+
+      # 10. Exécution des tests fonctionnels
+      - name: Run Functional Tests
+        run: |
+          chmod +x ./ci-cd/test_deployment.sh
+          ./ci-cd/test_deployment.sh
+
+      # 11. Exécution des vérifications de sécurité
+      - name: Run Security Checks
+        run: |
+          chmod +x ./ci-cd/security_checks.sh
+          ./ci-cd/security_checks.sh
+
+      # 12. Vérification des métriques (simulation)
+      - name: Run Monitoring Tests
+        run: |
+          chmod +x ./tests/monitoring_tests/check_metrics.sh
+          ./tests/monitoring_tests/check_metrics.sh
+
+      # 13. Nettoyage des VMs (optionnel)
+      - name: Cleanup VMs
+        if: always()  # S'exécute même en cas d'échec
+        run: |
+          vagrant destroy -f || echo "No VMs to destroy in CI environment"
+
+      # 14. Notification en cas d'échec
+      - name: Send Notification on Failure
+        if: failure()
+        run: |
+          chmod +x ./notifications/gmail_notification.sh
+          ./notifications/gmail_notification.sh "Pipeline Failure" "The CI/CD pipeline failed. Check GitHub Actions logs."
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
